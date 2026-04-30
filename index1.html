@@ -1,0 +1,969 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Froggy Math Jump</title>
+    <style>
+        /* === VARIABEL WARNA & TEMA === */
+        :root {
+            --sky-top: #87CEEB;
+            --sky-bottom: #E0F6FF;
+            --water-top: #4FACFE;
+            --water-bottom: #00F2FE;
+            --leaf-color: #4CAF50;
+            --leaf-hover: #45a049;
+            --text-dark: #2C3E50;
+            --text-light: #FFFFFF;
+            --panel-bg: rgba(255, 255, 255, 0.85);
+        }
+
+        /* === RESET & BASE === */
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            user-select: none; /* Prevent text selection during gameplay */
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body, html {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background: linear-gradient(to bottom, var(--sky-top), var(--sky-bottom));
+        }
+
+        /* === MAIN LAYOUT === */
+        #app {
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+        }
+
+        /* Top Bar (Global Controls) */
+        #top-bar {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            padding: 10px 20px;
+            display: flex;
+            justify-content: space-between;
+            z-index: 100;
+            pointer-events: none; /* Let clicks pass through except on buttons */
+        }
+
+        .control-btn {
+            pointer-events: auto;
+            background: var(--panel-bg);
+            border: 2px solid var(--text-dark);
+            border-radius: 50px;
+            padding: 8px 15px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            transition: transform 0.1s, background 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .control-btn:active {
+            transform: translateY(2px);
+        }
+
+        /* === MENUS === */
+        #menu-screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            background: linear-gradient(to bottom, rgba(135,206,235,0.9), rgba(0,242,254,0.9));
+            z-index: 50;
+            transition: opacity 0.5s;
+        }
+
+        .title-container {
+            text-align: center;
+            margin-bottom: 40px;
+            animation: bounceIn 1s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+
+        .title-container h1 {
+            font-size: 3rem;
+            color: var(--text-light);
+            text-shadow: 3px 3px 0 #2980B9, -1px -1px 0 #2980B9, 1px -1px 0 #2980B9, -1px 1px 0 #2980B9, 1px 1px 0 #2980B9;
+        }
+
+        .title-container p {
+            font-size: 1.2rem;
+            color: #FFF;
+            font-weight: bold;
+            margin-top: 10px;
+            text-shadow: 1px 1px 3px rgba(0,0,0,0.5);
+        }
+
+        .mode-buttons {
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        .mode-btn {
+            background: #FF9800;
+            color: white;
+            border: 4px solid #E65100;
+            border-radius: 20px;
+            padding: 20px 40px;
+            font-size: 1.5rem;
+            font-weight: bold;
+            cursor: pointer;
+            box-shadow: 0 10px 0 #E65100, 0 15px 20px rgba(0,0,0,0.3);
+            transition: all 0.1s;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .mode-btn:active {
+            transform: translateY(10px);
+            box-shadow: 0 0 0 #E65100, 0 5px 10px rgba(0,0,0,0.3);
+        }
+
+        /* === GAME LAYOUT MODES === */
+        #game-container {
+            flex: 1;
+            display: none; /* diubah via JS */
+            width: 100%;
+            height: 100%;
+            padding: 10px;
+            gap: 10px;
+            padding-top: 60px; /* Space for top bar */
+        }
+
+        /* Mode Grid Systems */
+        #game-container.solo {
+            display: grid;
+            grid-template-columns: 1fr;
+            grid-template-rows: 1fr;
+        }
+
+        #game-container.duel {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            grid-template-rows: 1fr;
+        }
+
+        #game-container.squad {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            grid-template-rows: 1fr 1fr;
+        }
+
+        /* === PLAYER INSTANCE UI === */
+        .player-board {
+            background: rgba(255, 255, 255, 0.2);
+            border: 3px solid rgba(255, 255, 255, 0.5);
+            border-radius: 20px;
+            position: relative;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Water Background */
+        .water-bg {
+            position: absolute;
+            bottom: 0;
+            width: 100%;
+            height: 40%;
+            background: linear-gradient(to bottom, rgba(79, 172, 254, 0.8), rgba(0, 242, 254, 0.9));
+            z-index: 1;
+            border-top: 4px solid rgba(255, 255, 255, 0.4);
+            animation: waterMove 3s infinite alternate ease-in-out;
+        }
+
+        .player-ui {
+            position: relative;
+            z-index: 10;
+            display: flex;
+            justify-content: space-between;
+            padding: 10px;
+            background: var(--panel-bg);
+            border-bottom-left-radius: 15px;
+            border-bottom-right-radius: 15px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            margin: 0 10px;
+        }
+
+        .player-name {
+            font-weight: bold;
+            color: var(--text-dark);
+            font-size: 1.2rem;
+        }
+
+        .player-score {
+            font-weight: bold;
+            color: #E65100;
+            font-size: 1.2rem;
+        }
+
+        /* Gameplay Area */
+        .play-area {
+            flex: 1;
+            position: relative;
+            z-index: 5;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: space-evenly; /* Menyebarkan elemen soal dan daun secara rata */
+            gap: 10px; 
+            padding-top: 20px;
+            padding-bottom: 110px; /* Ruang khusus untuk katak agar tidak terpotong */
+        }
+
+        .question-box {
+            background: white;
+            padding: 15px 30px;
+            border-radius: 30px;
+            font-size: 2rem;
+            font-weight: bold;
+            color: #2980B9;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+            border: 4px solid #3498DB;
+            text-align: center;
+            animation: popIn 0.5s;
+        }
+
+        .leaves-container {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            width: 100%;
+            padding: 0 10px;
+            flex-wrap: wrap;
+        }
+
+        .leaf-wrapper {
+            position: relative;
+            cursor: pointer;
+            transition: transform 0.2s;
+            animation: float 3s infinite ease-in-out;
+        }
+        
+        .leaf-wrapper:nth-child(2) { animation-delay: 0.5s; }
+        .leaf-wrapper:nth-child(3) { animation-delay: 1s; }
+        .leaf-wrapper:nth-child(4) { animation-delay: 1.5s; }
+
+        .leaf-wrapper:hover {
+            transform: scale(1.1);
+        }
+
+        .leaf-icon {
+            font-size: 4rem;
+            line-height: 1; /* Menghilangkan padding kosong bawaan emoji */
+            filter: drop-shadow(0 5px 5px rgba(0,0,0,0.3));
+        }
+
+        .leaf-answer {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: white;
+            text-shadow: 2px 2px 0 #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000;
+            pointer-events: none;
+        }
+
+        .frog {
+            font-size: 4.5rem;
+            line-height: 1; /* Menghilangkan padding kosong bawaan emoji */
+            position: absolute;
+            bottom: 20px; /* Jarak aman dari bawah layar */
+            left: 50%;
+            transform: translateX(-50%);
+            transition: all 0.4s cubic-bezier(0.25, 1, 0.5, 1);
+            filter: drop-shadow(0 10px 5px rgba(0,0,0,0.4));
+            z-index: 20;
+        }
+
+        /* === SPECIFIC MODE SCALING (AGAR TERLIHAT DI SQUAD/DUEL) === */
+        
+        /* DUEL MODE SCALING */
+        #game-container.duel .play-area { padding-bottom: 90px; }
+        #game-container.duel .question-box { font-size: 1.5rem; padding: 10px 20px; }
+        #game-container.duel .leaf-icon { font-size: 3rem; }
+        #game-container.duel .frog { font-size: 3.5rem; bottom: 15px; }
+
+        /* SQUAD MODE SCALING (Grid 2x2 yang sangat sempit) */
+        #game-container.squad .play-area { padding-top: 10px; padding-bottom: 60px; gap: 5px; }
+        #game-container.squad .player-ui { padding: 5px; margin: 0 5px; }
+        #game-container.squad .player-name, #game-container.squad .player-score { font-size: 0.9rem; }
+        #game-container.squad .question-box { font-size: 1.2rem; padding: 5px 15px; border-width: 2px; }
+        #game-container.squad .leaves-container { gap: 5px; }
+        #game-container.squad .leaf-icon { font-size: 2.2rem; }
+        #game-container.squad .leaf-answer { font-size: 1.1rem; }
+        #game-container.squad .frog { font-size: 2.5rem; bottom: 10px; }
+
+
+        /* === RAIN & EFFECTS === */
+        #weather-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 2;
+            overflow: hidden;
+        }
+
+        .drop {
+            position: absolute;
+            background: rgba(255, 255, 255, 0.6);
+            width: 2px;
+            height: 15px;
+            bottom: 100%;
+            animation: fall linear infinite;
+        }
+
+        .splash {
+            position: absolute;
+            font-size: 3rem;
+            transform: translate(-50%, -50%);
+            animation: splashAnim 0.6s forwards;
+            pointer-events: none;
+            z-index: 15;
+            opacity: 0;
+        }
+
+        .ripple {
+            position: absolute;
+            width: 10px;
+            height: 5px;
+            background: transparent;
+            border: 3px solid white;
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            animation: rippleAnim 1s forwards;
+            pointer-events: none;
+            z-index: 14;
+        }
+
+        /* === ANIMATIONS === */
+        @keyframes float {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-10px); }
+        }
+
+        @keyframes waterMove {
+            0% { border-top-width: 2px; transform: scaleY(1); }
+            100% { border-top-width: 6px; transform: scaleY(1.05); }
+        }
+
+        @keyframes bounceIn {
+            0% { transform: scale(0.3); opacity: 0; }
+            50% { transform: scale(1.05); opacity: 1; }
+            70% { transform: scale(0.9); }
+            100% { transform: scale(1); }
+        }
+
+        @keyframes popIn {
+            0% { transform: scale(0); }
+            80% { transform: scale(1.1); }
+            100% { transform: scale(1); }
+        }
+
+        @keyframes fall {
+            to { transform: translateY(100vh); }
+        }
+
+        @keyframes splashAnim {
+            0% { opacity: 1; transform: translate(-50%, -50%) scale(0.5); }
+            50% { opacity: 1; transform: translate(-50%, -100%) scale(1.2); }
+            100% { opacity: 0; transform: translate(-50%, -50%) scale(1); }
+        }
+
+        @keyframes rippleAnim {
+            0% { width: 0; height: 0; opacity: 1; }
+            100% { width: 100px; height: 30px; opacity: 0; }
+        }
+
+        .sink-anim {
+            animation: sink 0.5s forwards;
+        }
+
+        @keyframes sink {
+            0% { transform: translateX(-50%) translateY(0) scale(1) rotate(0deg); }
+            100% { transform: translateX(-50%) translateY(50px) scale(0.5) rotate(180deg); opacity: 0; }
+        }
+
+        .jump-anim {
+            animation: jumpBounce 0.5s forwards;
+        }
+
+        @keyframes jumpBounce {
+            0% { transform: translateX(-50%) translateY(0) scale(1); }
+            50% { transform: translateX(-50%) translateY(-30px) scale(1.2); }
+            100% { transform: translateX(-50%) translateY(0) scale(1); }
+        }
+
+        /* Overlay Hitam saat transisi */
+        #transition-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: white;
+            z-index: 1000;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s;
+        }
+
+        /* === RESPONSIVE (MOBILE PORTRAIT EXTREME) === */
+        @media (max-width: 768px) and (orientation: portrait) {
+            #game-container.duel, #game-container.squad {
+                grid-template-columns: 1fr;
+                grid-template-rows: repeat(auto-fit, minmax(100px, 1fr));
+            }
+            .question-box { font-size: 1.2rem; padding: 5px 10px; }
+            .leaf-icon { font-size: 2.5rem; }
+            .leaf-answer { font-size: 1rem; }
+            .frog { font-size: 3rem; bottom: 10px;}
+            .title-container h1 { font-size: 2rem; }
+            .play-area { padding-top: 10px; padding-bottom: 80px; justify-content: space-evenly; }
+            #game-container.squad .play-area { padding-bottom: 50px; }
+        }
+    </style>
+</head>
+<body>
+
+    <div id="app">
+        <!-- Weather Effects Layer (Rain) -->
+        <div id="weather-layer"></div>
+
+        <!-- Transisi -->
+        <div id="transition-overlay"></div>
+
+        <!-- Global Controls -->
+        <div id="top-bar">
+            <button class="control-btn" onclick="game.showMenu()">🏠 Menu</button>
+            <div style="display: flex; gap: 10px;">
+                <button class="control-btn" id="btn-audio" onclick="audioManager.toggle()">🔊 Audio</button>
+                <button class="control-btn" onclick="game.toggleFullScreen()">🔲 Layar Penuh</button>
+            </div>
+        </div>
+
+        <!-- Main Menu -->
+        <div id="menu-screen">
+            <div class="title-container">
+                <h1>🐸 Froggy Math Jump</h1>
+                <p>Latihan Perkalian & Pembagian Kelas 2 SD</p>
+            </div>
+            <div class="mode-buttons">
+                <button class="mode-btn" onclick="game.startGame('solo')" style="background-color: #4CAF50; border-color: #2E7D32; box-shadow: 0 10px 0 #2E7D32;">
+                    <span>👤</span> Solo
+                </button>
+                <button class="mode-btn" onclick="game.startGame('duel')" style="background-color: #2196F3; border-color: #1565C0; box-shadow: 0 10px 0 #1565C0;">
+                    <span>⚔️</span> Duel
+                </button>
+                <button class="mode-btn" onclick="game.startGame('squad')" style="background-color: #9C27B0; border-color: #6A1B9A; box-shadow: 0 10px 0 #6A1B9A;">
+                    <span>👥</span> Squad
+                </button>
+            </div>
+        </div>
+
+        <!-- Game Area -->
+        <div id="game-container">
+            <!-- Papan pemain akan di-generate oleh JavaScript di sini -->
+        </div>
+    </div>
+
+    <script>
+        /**
+         * AUDIO MANAGER (Web Audio API Synthesizer)
+         * Men-generate suara tanpa file eksternal agar aman dari CORS.
+         */
+        class AudioManager {
+            constructor() {
+                this.ctx = null;
+                this.enabled = true;
+                this.bgmOsc = null;
+                this.bgmGain = null;
+                this.isPlayingBGM = false;
+            }
+
+            init() {
+                if (!this.ctx) {
+                    const AudioContext = window.AudioContext || window.webkitAudioContext;
+                    this.ctx = new AudioContext();
+                }
+            }
+
+            toggle() {
+                this.enabled = !this.enabled;
+                document.getElementById('btn-audio').innerText = this.enabled ? "🔊 Audio" : "🔇 Bisu";
+                if (!this.enabled && this.isPlayingBGM) this.stopBGM();
+                else if (this.enabled && !this.isPlayingBGM && document.getElementById('menu-screen').style.display === 'none') this.playBGM();
+            }
+
+            playJump() {
+                if (!this.enabled) return;
+                this.init();
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(300, this.ctx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(600, this.ctx.currentTime + 0.2);
+                
+                gain.gain.setValueAtTime(0.3, this.ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.2);
+                
+                osc.start();
+                osc.stop(this.ctx.currentTime + 0.2);
+            }
+
+            playCorrect() {
+                if (!this.enabled) return;
+                this.init();
+                const playTone = (freq, time, dur) => {
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+                    osc.connect(gain);
+                    gain.connect(this.ctx.destination);
+                    osc.type = 'triangle';
+                    osc.frequency.value = freq;
+                    gain.gain.setValueAtTime(0.3, time);
+                    gain.gain.exponentialRampToValueAtTime(0.01, time + dur);
+                    osc.start(time);
+                    osc.stop(time + dur);
+                };
+                playTone(600, this.ctx.currentTime, 0.1);
+                playTone(800, this.ctx.currentTime + 0.1, 0.2);
+            }
+
+            playSplash() {
+                if (!this.enabled) return;
+                this.init();
+                // Membuat suara white noise / splash
+                const bufferSize = this.ctx.sampleRate * 0.5; // 0.5 seconds
+                const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+                const data = buffer.getChannelData(0);
+                for (let i = 0; i < bufferSize; i++) {
+                    data[i] = Math.random() * 2 - 1;
+                }
+                
+                const noise = this.ctx.createBufferSource();
+                noise.buffer = buffer;
+                
+                // Filter untuk membuatnya terdengar seperti air (lowpass)
+                const filter = this.ctx.createBiquadFilter();
+                filter.type = 'lowpass';
+                filter.frequency.value = 800;
+
+                const gain = this.ctx.createGain();
+                gain.gain.setValueAtTime(0.5, this.ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.5);
+
+                noise.connect(filter);
+                filter.connect(gain);
+                gain.connect(this.ctx.destination);
+
+                noise.start();
+            }
+
+            playBGM() {
+                if (!this.enabled || this.isPlayingBGM) return;
+                this.init();
+                this.bgmOsc = this.ctx.createOscillator();
+                this.bgmGain = this.ctx.createGain();
+                
+                this.bgmOsc.type = 'triangle';
+                this.bgmGain.gain.value = 0.05; // Sangat pelan agar tidak ganggu
+                
+                this.bgmOsc.connect(this.bgmGain);
+                this.bgmGain.connect(this.ctx.destination);
+                
+                // Efek modulasi sederhana untuk BGM ambient
+                const lfo = this.ctx.createOscillator();
+                lfo.type = 'sine';
+                lfo.frequency.value = 0.5;
+                const lfoGain = this.ctx.createGain();
+                lfoGain.gain.value = 50;
+                lfo.connect(lfoGain);
+                lfoGain.connect(this.bgmOsc.frequency);
+                
+                this.bgmOsc.frequency.value = 300;
+                
+                this.bgmOsc.start();
+                lfo.start();
+                this.isPlayingBGM = true;
+            }
+
+            stopBGM() {
+                if (this.bgmOsc) {
+                    this.bgmGain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.5);
+                    setTimeout(() => {
+                        if(this.bgmOsc) {
+                            this.bgmOsc.stop();
+                            this.bgmOsc.disconnect();
+                            this.bgmOsc = null;
+                        }
+                    }, 500);
+                }
+                this.isPlayingBGM = false;
+            }
+        }
+
+        const audioManager = new AudioManager();
+
+        /**
+         * MATH ENGINE
+         * Logic untuk soal kelas 2 SD (Perkalian dasar & Pembagian dasar)
+         */
+        class MathEngine {
+            static generateQuestion() {
+                const types = ['multiply', 'divide'];
+                const type = types[Math.floor(Math.random() * types.length)];
+                
+                let num1, num2, answer, text;
+
+                if (type === 'multiply') {
+                    num1 = Math.floor(Math.random() * 10) + 1; // 1-10
+                    num2 = Math.floor(Math.random() * 10) + 1; // 1-10
+                    answer = num1 * num2;
+                    text = `${num1} × ${num2}`;
+                } else {
+                    // Pembagian (kebalikan perkalian agar bulat)
+                    num2 = Math.floor(Math.random() * 9) + 2; // 2-10 (hindari bagi 1)
+                    let multiplier = Math.floor(Math.random() * 10) + 1;
+                    num1 = num2 * multiplier; // Jadi num1 / num2 selalu = multiplier
+                    answer = multiplier;
+                    text = `${num1} ÷ ${num2}`;
+                }
+
+                // Buat 3 pengecoh yang masuk akal
+                let options = [answer];
+                while (options.length < 4) {
+                    let offset = Math.floor(Math.random() * 5) + 1;
+                    let sign = Math.random() > 0.5 ? 1 : -1;
+                    let fake = answer + (offset * sign);
+                    
+                    // Pastikan tidak negatif dan tidak sama dengan opsi yang sudah ada
+                    if (fake >= 0 && !options.includes(fake)) {
+                        options.push(fake);
+                    }
+                }
+
+                // Acak array (Fisher-Yates)
+                for (let i = options.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [options[i], options[j]] = [options[j], options[i]];
+                }
+
+                return { text, answer, options };
+            }
+        }
+
+        /**
+         * PLAYER INSTANCE
+         * Menangani 1 board permainan (memungkinkan multi-instance untuk Duel/Squad)
+         */
+        class PlayerInstance {
+            constructor(id, name, color, parentContainer) {
+                this.id = id;
+                this.name = name;
+                this.color = color;
+                this.score = 0;
+                this.currentQuestion = null;
+                this.isAnimating = false;
+                
+                // Buat DOM Element
+                this.board = document.createElement('div');
+                this.board.className = 'player-board';
+                
+                this.board.innerHTML = `
+                    <div class="water-bg"></div>
+                    <div class="player-ui">
+                        <span class="player-name" style="color: ${this.color}">${this.name}</span>
+                        <span class="player-score">Skor: <span id="score-${this.id}">0</span></span>
+                    </div>
+                    <div class="play-area" id="area-${this.id}">
+                        <div class="question-box" id="q-${this.id}">...</div>
+                        <div class="leaves-container" id="leaves-${this.id}"></div>
+                        <div class="frog" id="frog-${this.id}">🐸</div>
+                    </div>
+                `;
+                
+                parentContainer.appendChild(this.board);
+
+                // Cache DOM elements
+                this.qEl = document.getElementById(`q-${this.id}`);
+                this.leavesEl = document.getElementById(`leaves-${this.id}`);
+                this.frogEl = document.getElementById(`frog-${this.id}`);
+                this.scoreEl = document.getElementById(`score-${this.id}`);
+                this.areaEl = document.getElementById(`area-${this.id}`);
+
+                this.nextQuestion();
+            }
+
+            nextQuestion() {
+                this.currentQuestion = MathEngine.generateQuestion();
+                this.qEl.innerText = this.currentQuestion.text;
+                
+                // Reset leaves
+                this.leavesEl.innerHTML = '';
+                this.currentQuestion.options.forEach((opt, index) => {
+                    const leaf = document.createElement('div');
+                    leaf.className = 'leaf-wrapper';
+                    leaf.innerHTML = `
+                        <div class="leaf-icon">🍃</div>
+                        <div class="leaf-answer">${opt}</div>
+                    `;
+                    
+                    // Event listener klik pada daun
+                    // Gunakan ontouchstart untuk respon cepat di HP, fallback onclick
+                    const handleTap = (e) => {
+                        e.preventDefault();
+                        this.handleJump(leaf, opt);
+                    };
+                    leaf.addEventListener('mousedown', handleTap);
+                    leaf.addEventListener('touchstart', handleTap, {passive: false});
+                    
+                    this.leavesEl.appendChild(leaf);
+                });
+
+                // Reset katak
+                this.frogEl.className = 'frog';
+                this.frogEl.style.transform = `translateX(-50%)`;
+                this.isAnimating = false;
+            }
+
+            handleJump(targetLeaf, selectedAnswer) {
+                if (this.isAnimating) return;
+                this.isAnimating = true;
+
+                // Mainkan suara loncat
+                audioManager.playJump();
+
+                // Dapatkan posisi katak dan daun untuk kalkulasi loncat (Visual only)
+                const leafRect = targetLeaf.getBoundingClientRect();
+                const areaRect = this.areaEl.getBoundingClientRect();
+
+                // Hitung offset relatif ke dalam kontainer
+                const targetX = (leafRect.left + leafRect.width / 2) - areaRect.left;
+                const targetY = (leafRect.top + leafRect.height / 2) - areaRect.top;
+                
+                // Tambahkan offset (Y) agar katak mendarat agak ke bawah daun (tidak menutupi angka)
+                const isSmallMode = areaRect.height < 300;
+                const offsetY = isSmallMode ? 10 : 25;
+
+                // Animasi CSS transform sederhana: Lompat ke daun 
+                this.frogEl.style.left = `${targetX}px`;
+                this.frogEl.style.bottom = `${areaRect.height - targetY - offsetY}px`;
+                
+                // Gunakan hanya translateX dan scale agar katak tidak "terbenam" ke bawah saat mendarat
+                this.frogEl.style.transform = `translateX(-50%) scale(1.2)`; 
+
+                setTimeout(() => {
+                    this.frogEl.style.transform = `translateX(-50%) scale(1)`; // mendarat
+                    this.checkAnswer(selectedAnswer, targetX, areaRect.height - targetY - offsetY);
+                }, 400); // durasi transisi css
+            }
+
+            checkAnswer(selectedAnswer, xPos, bottomPos) {
+                if (selectedAnswer === this.currentQuestion.answer) {
+                    // BENAR
+                    audioManager.playCorrect();
+                    this.score += 10;
+                    this.scoreEl.innerText = this.score;
+                    
+                    // Animasi sukses: Katak bounce
+                    this.frogEl.classList.add('jump-anim');
+                    
+                    // Buat layar terasa bergerak maju (reset)
+                    setTimeout(() => {
+                        // Reset frog position
+                        this.frogEl.style.transition = 'none';
+                        this.frogEl.style.left = '50%';
+                        this.frogEl.style.bottom = ''; // Mengembalikan ke pengaturan default CSS
+                        this.frogEl.style.transform = 'translateX(-50%)';
+                        
+                        // Force reflow
+                        void this.frogEl.offsetWidth; 
+                        this.frogEl.style.transition = 'all 0.4s cubic-bezier(0.25, 1, 0.5, 1)';
+                        
+                        this.nextQuestion();
+                    }, 500);
+
+                } else {
+                    // SALAH
+                    audioManager.playSplash();
+                    this.score = Math.max(0, this.score - 5); // Kurangi poin tapi tidak minus
+                    this.scoreEl.innerText = this.score;
+
+                    // Katak tenggelam
+                    this.frogEl.classList.add('sink-anim');
+
+                    // Buat efek air (Splash & Ripple)
+                    this.createSplashEffect(xPos, bottomPos);
+
+                    // Reset setelah tenggelam
+                    setTimeout(() => {
+                        this.frogEl.style.transition = 'none';
+                        this.frogEl.style.left = '50%';
+                        this.frogEl.style.bottom = ''; // Mengembalikan ke pengaturan default CSS
+                        this.frogEl.style.transform = 'translateX(-50%)';
+                        void this.frogEl.offsetWidth;
+                        this.frogEl.style.transition = 'all 0.4s cubic-bezier(0.25, 1, 0.5, 1)';
+                        this.nextQuestion();
+                    }, 1000);
+                }
+            }
+
+            createSplashEffect(x, bottom) {
+                // Splash element (Tetesan air naik)
+                const splash = document.createElement('div');
+                splash.className = 'splash';
+                splash.innerText = '💦';
+                splash.style.left = `${x}px`;
+                splash.style.bottom = `${bottom - 20}px`; // Sedikit di bawah daun
+                this.areaEl.appendChild(splash);
+
+                // Ripple element (Gelombang di air)
+                const ripple = document.createElement('div');
+                ripple.className = 'ripple';
+                ripple.style.left = `${x}px`;
+                // Ripple muncul di permukaan air (batas atas div water-bg)
+                ripple.style.bottom = `40%`; 
+                this.board.appendChild(ripple);
+
+                setTimeout(() => {
+                    if(splash.parentNode) splash.parentNode.removeChild(splash);
+                    if(ripple.parentNode) ripple.parentNode.removeChild(ripple);
+                }, 1000);
+            }
+            
+            destroy() {
+                this.board.remove();
+            }
+        }
+
+        /**
+         * GAME ENGINE / CONTROLLER
+         * Mengatur flow aplikasi, efek cuaca global
+         */
+        class GameController {
+            constructor() {
+                this.players = [];
+                this.container = document.getElementById('game-container');
+                this.menu = document.getElementById('menu-screen');
+                this.overlay = document.getElementById('transition-overlay');
+                this.weatherLayer = document.getElementById('weather-layer');
+                this.rainInterval = null;
+                
+                this.createRain();
+            }
+
+            createRain() {
+                // Generate rintik hujan menggunakan CSS animation
+                for(let i=0; i<30; i++) {
+                    let drop = document.createElement('div');
+                    drop.className = 'drop';
+                    drop.style.left = `${Math.random() * 100}%`;
+                    drop.style.animationDuration = `${Math.random() * 1 + 0.5}s`;
+                    drop.style.animationDelay = `${Math.random() * 2}s`;
+                    this.weatherLayer.appendChild(drop);
+                }
+            }
+
+            async showMenu() {
+                this.transition(() => {
+                    // Hancurkan game lama
+                    this.players.forEach(p => p.destroy());
+                    this.players = [];
+                    this.container.style.display = 'none';
+                    this.container.className = '';
+                    this.menu.style.display = 'flex';
+                    audioManager.stopBGM();
+                });
+            }
+
+            startGame(mode) {
+                // Pastikan audio bisa jalan (harus dipicu aksi user)
+                audioManager.init();
+                
+                this.transition(() => {
+                    this.menu.style.display = 'none';
+                    this.container.style.display = 'grid'; // Grid diatur via class CSS
+                    this.container.className = mode; // 'solo', 'duel', 'squad'
+                    this.container.innerHTML = ''; // Bersihkan
+
+                    const configs = {
+                        'solo': [{ id: 1, name: 'Pemain 1', color: '#2E7D32' }],
+                        'duel': [
+                            { id: 1, name: 'Pemain 1', color: '#2E7D32' },
+                            { id: 2, name: 'Pemain 2', color: '#1565C0' }
+                        ],
+                        'squad': [
+                            { id: 1, name: 'Pemain 1', color: '#2E7D32' },
+                            { id: 2, name: 'Pemain 2', color: '#1565C0' },
+                            { id: 3, name: 'Pemain 3', color: '#C62828' },
+                            { id: 4, name: 'Pemain 4', color: '#6A1B9A' }
+                        ]
+                    };
+
+                    this.players = configs[mode].map(cfg => 
+                        new PlayerInstance(cfg.id, cfg.name, cfg.color, this.container)
+                    );
+
+                    audioManager.playBGM();
+                });
+            }
+
+            transition(callback) {
+                this.overlay.style.opacity = '1';
+                setTimeout(() => {
+                    callback();
+                    this.overlay.style.opacity = '0';
+                }, 300); // 300ms fade
+            }
+
+            toggleFullScreen() {
+                if (!document.fullscreenElement) {
+                    document.documentElement.requestFullscreen().catch(err => {
+                        console.log(`Error attempting to enable fullscreen: ${err.message}`);
+                    });
+                } else {
+                    if (document.exitFullscreen) {
+                        document.exitFullscreen();
+                    }
+                }
+            }
+        }
+
+        // Inisialisasi Game
+        const game = new GameController();
+
+    </script>
+</body>
+</html>
